@@ -4,6 +4,8 @@ All notable changes to the Pushover integration for Gladys Assistant.
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-10-03
+
 ### Fixed
 
 - A Pushover user key refused by Pushover is no longer tried again for 10
