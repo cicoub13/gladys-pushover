@@ -4,6 +4,8 @@ All notable changes to the Pushover integration for Gladys Assistant.
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-03
+
 ### Added
 
 - First version: Gladys messages and camera images delivered to the Pushover

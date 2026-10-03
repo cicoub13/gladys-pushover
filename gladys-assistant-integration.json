@@ -6,8 +6,8 @@
     "en": "Get Gladys messages and notifications on your phone through Pushover.",
     "fr": "Recevez les messages et notifications de Gladys sur votre téléphone via Pushover."
   },
-  "version": "0.1.0",
-  "docker_image": "ghcr.io/cicoub13/gladys-pushover:0.1.0",
+  "version": "0.1.1",
+  "docker_image": "ghcr.io/cicoub13/gladys-pushover:0.1.1",
   "gladys_version": ">=4.86.0",
   "cover_image": "https://raw.githubusercontent.com/cicoub13/gladys-pushover/main/cover.png",
   "categories": ["notifications"],
