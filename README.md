@@ -21,8 +21,9 @@ external integration running in its own container, on the JavaScript SDK
   than Pushover's 1,024 characters are shortened instead of rejected.
 - The **connection status** checks the token at startup and shows the messages
   left in the monthly quota. A token Pushover refused, or a malformed token or
-  key, stops the sending without a request: Pushover temporarily blocks an IP
-  address that keeps sending invalid requests.
+  key, stops the sending without a request, and a refused user key or an
+  exhausted quota pauses it: Pushover temporarily blocks an IP address that
+  keeps sending invalid requests.
 
 ## Install
 

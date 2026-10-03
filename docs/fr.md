@@ -102,7 +102,8 @@ n'est envoyé jusqu'à ce que vous enregistriez un jeton valide.
 zéro le 1er du mois. »** Le compte Pushover propriétaire de l'application a
 envoyé ses 10 000 messages du mois, toutes applications confondues. Réduisez
 le nombre de messages de vos scènes, ou achetez de la capacité
-supplémentaire chez Pushover.
+supplémentaire chez Pushover. Gladys ne sollicite plus Pushover jusqu'à la
+remise à zéro.
 
 **« Pushover est injoignable. Vérifiez l'accès à Internet de la machine
 Gladys. »**, **« Pushover n'a pas répondu à temps. Réessayez plus tard. »**,
@@ -123,7 +124,9 @@ Dans les journaux de l'intégration, pour un message en particulier :
   Saisissez-la à nouveau.
 - **`Pushover refused the user key, or the account has no active device`** :
   la clé n'existe pas, ou aucun appareil n'est actif sur ce compte Pushover.
-  Ouvrez l'application Pushover sur votre téléphone pour l'activer.
+  Ouvrez l'application Pushover sur votre téléphone pour l'activer. La même
+  clé n'est pas réessayée pendant 10 minutes ; une clé corrigée est utilisée
+  tout de suite.
 - **`Invalid Pushover device name(s) in "My account"`** : un nom d'appareil
   contient un caractère interdit. Un nom d'appareil fait au plus 25
   caractères : lettres, chiffres, `-` et `_`.

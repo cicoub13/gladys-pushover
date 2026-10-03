@@ -11,11 +11,13 @@
 // Pushover blocks for a while an IP address that keeps sending invalid
 // requests, and every device of the house shares that address. So nothing is
 // sent with a token known to be wrong (missing, malformed, or refused once)
-// nor with a malformed user key: those fail here, without a request.
+// nor with a malformed user key: those fail here, without a request. A user
+// key Pushover refused, and an exhausted monthly quota, pause the requests for
+// a while instead.
 // -----------------------------------------------------------------------------
 
 import { logger as defaultLogger } from '@gladysassistant/integration-sdk';
-import { PushoverClient, describeError } from './pushover/client.js';
+import { PushoverClient, PushoverError, describeError } from './pushover/client.js';
 import { invalidDevices, isValidKey, normalizeConfig, normalizeContact } from './config.js';
 import { toPushoverMessage } from './message.js';
 
@@ -36,6 +38,16 @@ export const MESSAGES = {
 
 // Errors about one message or one user: the channel itself still works.
 const RECIPIENT_ERRORS = ['invalid_user', 'invalid_request'];
+
+// A user key Pushover refused is not tried again before this delay: few
+// enough 4xx not to get the IP blocked, soon enough to notice a device the
+// user activated meanwhile.
+export const REFUSED_USER_RETRY_MS = 10 * 60 * 1000;
+// Pause after a quota refusal when the reset date of the quota is unknown.
+export const QUOTA_RETRY_MS = 60 * 60 * 1000;
+
+const USER_REFUSED = describeError(new PushoverError('invalid_user', ''));
+const QUOTA_REACHED = describeError(new PushoverError('quota', ''));
 
 /**
  * Connection status message showing the quota left this month.
@@ -58,14 +70,20 @@ export class PushoverIntegration {
    * @param {object} [deps]
    * @param {(options: {token: string}) => PushoverClient} [deps.createClient] - Injectable for tests.
    * @param {{info: Function, warn: Function, debug: Function}} [deps.logger] - Injectable for tests.
+   * @param {() => number} [deps.now] - Current time in ms, injectable for tests.
    */
   constructor(
     gladys,
-    { createClient = (options) => new PushoverClient(options), logger = defaultLogger } = {},
+    {
+      createClient = (options) => new PushoverClient(options),
+      logger = defaultLogger,
+      now = Date.now,
+    } = {},
   ) {
     this.gladys = gladys;
     this.createClient = createClient;
     this.logger = logger;
+    this.now = now;
     this.loaded = false;
     this.client = null;
     // {en, fr} reason why nothing can be sent, null when sending is possible.
@@ -74,6 +92,14 @@ export class PushoverIntegration {
     // older token must not change the state of the new one.
     this.generation = 0;
     this.status = null;
+    // User key -> time Pushover refused it.
+    this.refusedUsers = new Map();
+    // Monthly message limit of the token, null when Pushover did not say.
+    this.quotaLimit = null;
+    // When the monthly quota resets (ms), null when Pushover did not say.
+    this.quotaResetAt = null;
+    // Nothing is sent before this time (ms): the monthly quota is used up.
+    this.quotaPausedUntil = 0;
   }
 
   /**
@@ -90,6 +116,10 @@ export class PushoverIntegration {
     this.generation += 1;
     const generation = this.generation;
     this.client = null;
+    this.refusedUsers.clear();
+    this.quotaLimit = null;
+    this.quotaResetAt = null;
+    this.quotaPausedUntil = 0;
     if (token === '') {
       this.blocker = MESSAGES.notConfigured;
     } else if (!isValidKey(token)) {
@@ -115,6 +145,9 @@ export class PushoverIntegration {
       return;
     }
     if (generation === this.generation) {
+      this.quotaLimit = limits.limit;
+      // `reset` is a Unix time, in seconds.
+      this.quotaResetAt = Number.isFinite(limits.reset) ? limits.reset * 1000 : null;
       this.logger.info(`Pushover token valid, ${limits.remaining}/${limits.limit} messages left`);
       await this.reportConnection(true, quotaMessage(limits));
     }
@@ -157,9 +190,16 @@ export class PushoverIntegration {
     if (this.blocker) {
       throw new Error(this.blocker.en);
     }
+    if (this.now() < this.quotaPausedUntil) {
+      throw new Error(`${QUOTA_REACHED.en} [not sent until the quota resets]`);
+    }
     const { user_key: user, devices } = normalizeContact(contact);
     if (!isValidKey(user)) {
       throw new Error(MESSAGES.invalidUserKey.en);
+    }
+    const refusedAt = this.refusedUsers.get(user);
+    if (refusedAt !== undefined && this.now() - refusedAt < REFUSED_USER_RETRY_MS) {
+      throw new Error(`${USER_REFUSED.en} [not sent: refused less than 10 minutes ago]`);
     }
     const badDevices = invalidDevices(devices);
     if (badDevices.length > 0) {
@@ -177,6 +217,9 @@ export class PushoverIntegration {
     try {
       result = await this.client.sendMessage({ user, device: devices, message, attachment });
     } catch (err) {
+      if (err.kind === 'invalid_user') {
+        this.refusedUsers.set(user, this.now());
+      }
       if (generation === this.generation && !RECIPIENT_ERRORS.includes(err.kind)) {
         await this.handleChannelError(err);
       }
@@ -188,14 +231,17 @@ export class PushoverIntegration {
       `Message sent to Pushover (request ${result.request}, ${result.remaining ?? '?'} left this month)`,
     );
     if (generation === this.generation && this.status?.connected !== true) {
-      await this.reportConnection(true);
+      await this.reportConnection(
+        true,
+        quotaMessage({ limit: this.quotaLimit, remaining: result.remaining }),
+      );
     }
   }
 
   /**
    * React to a failure that concerns the whole channel (token, quota,
-   * Pushover itself): show it as the connection status, and stop sending
-   * with a token Pushover refused.
+   * Pushover itself): show it as the connection status, stop sending with a
+   * token Pushover refused, and until the quota resets once it is used up.
    * @param {unknown} err - The error.
    * @returns {Promise<void>}
    */
@@ -203,6 +249,13 @@ export class PushoverIntegration {
     const description = describeError(err);
     if (err?.kind === 'invalid_token') {
       this.blocker = description;
+    }
+    if (err?.kind === 'quota') {
+      const now = this.now();
+      this.quotaPausedUntil =
+        this.quotaResetAt !== null && this.quotaResetAt > now
+          ? this.quotaResetAt
+          : now + QUOTA_RETRY_MS;
     }
     await this.reportConnection(false, description);
   }

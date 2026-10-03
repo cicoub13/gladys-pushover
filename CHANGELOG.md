@@ -4,6 +4,17 @@ All notable changes to the Pushover integration for Gladys Assistant.
 
 ## [Unreleased]
 
+### Fixed
+
+- A Pushover user key refused by Pushover is no longer tried again for 10
+  minutes, and nothing is sent once the monthly quota is used up until it
+  resets: repeated refusals could get the Gladys IP address temporarily blocked
+  by Pushover.
+- Camera images get 8 seconds to upload instead of 4, so a large image on a
+  modest Internet connection is no longer lost.
+- The connection status keeps showing the messages left this month once
+  Pushover works again after an error.
+
 ## [0.1.1] - 2026-10-03
 
 ### Added

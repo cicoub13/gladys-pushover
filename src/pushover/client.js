@@ -15,6 +15,9 @@ export const API_BASE_URL = 'https://api.pushover.net/1';
 // Gladys gives up on a message.send command after 5 s (COMMAND_TIMEOUT_MS in
 // the core): answer before that, with our own error rather than its timeout.
 export const DEFAULT_TIMEOUT_MS = 4 * 1000;
+// An image (up to 5 MB) takes longer to upload on a modest uplink: let it
+// finish even past the Gladys deadline, the notification still arrives.
+export const ATTACHMENT_TIMEOUT_MS = 8 * 1000;
 
 /**
  * Error of a Pushover request.
@@ -109,17 +112,20 @@ export class PushoverClient {
    * @param {string} options.token - Application API token.
    * @param {typeof fetch} [options.fetchImpl] - Injectable for tests.
    * @param {number} [options.timeoutMs] - Deadline of one request (headers AND body).
+   * @param {number} [options.attachmentTimeoutMs] - Deadline of a message with an image.
    * @param {string} [options.baseUrl] - API root, for tests.
    */
   constructor({
     token,
     fetchImpl = globalThis.fetch,
     timeoutMs = DEFAULT_TIMEOUT_MS,
+    attachmentTimeoutMs = ATTACHMENT_TIMEOUT_MS,
     baseUrl = API_BASE_URL,
   }) {
     this.#token = token;
     this.fetchImpl = fetchImpl;
     this.timeoutMs = timeoutMs;
+    this.attachmentTimeoutMs = attachmentTimeoutMs;
     this.baseUrl = baseUrl;
   }
 
@@ -131,9 +137,10 @@ export class PushoverClient {
    * @param {URLSearchParams} [options.query] - Query string (the token goes here for a GET).
    * @param {FormData} [options.body] - Form body (the token goes here for a POST).
    * @param {string[]} [options.secrets] - Values to scrub from the answer, besides the token.
+   * @param {number} [options.timeoutMs] - Deadline of this request.
    * @returns {Promise<{body: any, headers: Headers}>} The answer of a successful request.
    */
-  async request(method, path, { query, body, secrets = [] }) {
+  async request(method, path, { query, body, secrets = [], timeoutMs = this.timeoutMs }) {
     const label = `${method} ${path}`;
     const keys = [this.#token, ...secrets].filter(Boolean);
     const redact = (text) => keys.reduce((result, key) => result.replaceAll(key, '***'), text);
@@ -147,7 +154,7 @@ export class PushoverClient {
         method,
         headers: { Accept: 'application/json' },
         body,
-        signal: AbortSignal.timeout(this.timeoutMs),
+        signal: AbortSignal.timeout(timeoutMs),
       });
       text = await response.text();
     } catch (err) {
@@ -215,6 +222,7 @@ export class PushoverClient {
     const { body, headers } = await this.request('POST', '/messages.json', {
       body: form,
       secrets: [user],
+      timeoutMs: attachment ? this.attachmentTimeoutMs : this.timeoutMs,
     });
     const remaining = Number.parseInt(headers.get('x-limit-app-remaining'), 10);
     return { request: body.request, remaining: Number.isNaN(remaining) ? null : remaining };
