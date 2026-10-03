@@ -1,0 +1,109 @@
+{
+  "manifest_version": 1,
+  "type": "communication",
+  "name": "Pushover",
+  "description": {
+    "en": "Get Gladys messages and notifications on your phone through Pushover.",
+    "fr": "Recevez les messages et notifications de Gladys sur votre téléphone via Pushover."
+  },
+  "version": "0.1.0",
+  "docker_image": "ghcr.io/cicoub13/gladys-pushover:0.1.0",
+  "gladys_version": ">=4.86.0",
+  "cover_image": "https://raw.githubusercontent.com/cicoub13/gladys-pushover/main/cover.png",
+  "categories": ["notifications"],
+  "messaging": {
+    "receive": false
+  },
+  "config_schema": [
+    {
+      "key": "intro",
+      "type": "section",
+      "label": {
+        "en": "Create a Pushover application",
+        "fr": "Créer une application Pushover"
+      },
+      "description": {
+        "en": "Gladys sends its messages through an application registered on your Pushover account. Create one (free, name it Gladys for instance), then paste its API token below. Each Gladys user then enters their own Pushover user key in the \"My account\" block.",
+        "fr": "Gladys envoie ses messages au nom d'une application enregistrée sur votre compte Pushover. Créez-en une (gratuit, nommez-la Gladys par exemple), puis collez son jeton d'API ci-dessous. Chaque utilisateur de Gladys saisit ensuite sa propre clé utilisateur Pushover dans le bloc « Mon compte »."
+      },
+      "links": [
+        {
+          "url": "https://pushover.net/apps/build",
+          "label": {
+            "en": "Create a Pushover application",
+            "fr": "Créer une application Pushover"
+          }
+        }
+      ]
+    },
+    {
+      "key": "app_token",
+      "type": "secret",
+      "label": {
+        "en": "Application API token",
+        "fr": "Jeton d'API de l'application"
+      },
+      "placeholder": {
+        "en": "30 letters and digits",
+        "fr": "30 lettres et chiffres"
+      },
+      "required": true
+    }
+  ],
+  "contact_schema": [
+    {
+      "key": "account",
+      "type": "section",
+      "label": {
+        "en": "Your Pushover account",
+        "fr": "Votre compte Pushover"
+      },
+      "description": {
+        "en": "Install the Pushover app on your phone, log in to pushover.net and copy \"Your User Key\", shown at the top of the page. A group key also works. Leave the devices empty to receive the messages on all of them.",
+        "fr": "Installez l'application Pushover sur votre téléphone, connectez-vous à pushover.net et copiez « Your User Key », affichée en haut de la page. Une clé de groupe fonctionne aussi. Laissez les appareils vides pour recevoir les messages sur tous."
+      },
+      "links": [
+        {
+          "url": "https://pushover.net/",
+          "label": {
+            "en": "Your Pushover user key",
+            "fr": "Votre clé utilisateur Pushover"
+          }
+        },
+        {
+          "url": "https://pushover.net/clients",
+          "label": {
+            "en": "Pushover apps",
+            "fr": "Applications Pushover"
+          }
+        }
+      ]
+    },
+    {
+      "key": "user_key",
+      "type": "secret",
+      "label": {
+        "en": "User key",
+        "fr": "Clé utilisateur"
+      },
+      "placeholder": {
+        "en": "30 letters and digits",
+        "fr": "30 lettres et chiffres"
+      },
+      "required": true
+    },
+    {
+      "key": "devices",
+      "type": "string",
+      "label": {
+        "en": "Devices, comma-separated (optional)",
+        "fr": "Appareils, séparés par des virgules (facultatif)"
+      },
+      "placeholder": {
+        "en": "iphone,ipad",
+        "fr": "iphone,ipad"
+      },
+      "required": false
+    }
+  ]
+}
