@@ -12,7 +12,9 @@ Project-specific notes. Generic rules (SDK contract, commands, kit-owned files, 
   `message` is `{ text, file }`. Gladys only calls it for users who filled their values, and
   through `message.sendToUser` only (no reply path on a send-only channel).
 - The core acks `message.send` within 5 s (`COMMAND_TIMEOUT_MS`), hence the 4 s request timeout
-  of the client. No retry: Pushover asks for 5 s between retries, longer than the ack window.
+  of the client. A message with an image gets 8 s to upload: past 5 s the core logs a timeout
+  (it does not resend), but the notification still arrives. No retry: Pushover asks for 5 s
+  between retries, longer than the ack window.
 - The SDK does not log a failed command and the core only logs it in the Gladys server log:
   `handleSendMessage` logs every failure (`Message not delivered: …`) for the integration logs.
 - `message.file` is `image/jpg;base64,…` (camera captures, see `camera.getLiveImage` in the

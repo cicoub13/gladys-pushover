@@ -212,6 +212,23 @@ test('a request slower than the timeout is aborted as a timeout', async () => {
   assert.equal(err.kind, 'timeout');
 });
 
+test('a message with an image gets the longer attachment deadline', async () => {
+  const slow = (url, init) =>
+    new Promise((resolve, reject) => {
+      const answer = setTimeout(() => resolve(json(200, { status: 1, request: 'r' })), 50);
+      init.signal.addEventListener('abort', () => {
+        clearTimeout(answer);
+        reject(init.signal.reason);
+      });
+    });
+  const { client } = newClient(slow, { timeoutMs: 10, attachmentTimeoutMs: 1000 });
+  const attachment = { data: Buffer.from([0xff, 0xd8, 0xff]), type: 'image/jpeg' };
+
+  assert.equal((await failure(client.sendMessage({ user: USER, message: 'Hi' }))).kind, 'timeout');
+  const result = await client.sendMessage({ user: USER, message: 'Hi', attachment });
+  assert.equal(result.request, 'r');
+});
+
 test('describeError has an English and a French message for every kind', () => {
   const kinds = [
     'invalid_token',

@@ -1,6 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { MESSAGES, PushoverIntegration } from '../src/integration.js';
+import {
+  MESSAGES,
+  PushoverIntegration,
+  QUOTA_RETRY_MS,
+  REFUSED_USER_RETRY_MS,
+} from '../src/integration.js';
 import { PushoverError, describeError } from '../src/pushover/client.js';
 import { IMAGE_ONLY_TEXT } from '../src/message.js';
 import { createFakeGladys } from './helpers/fakeGladys.js';
@@ -32,7 +37,10 @@ function setup({ clients = [scriptedClient()], config = { app_token: TOKEN } } =
   const gladys = createFakeGladys({ config });
   const created = [];
   const logs = { info: [], warn: [], debug: [] };
+  // One hour before the quota reset of LIMITS.
+  const clock = { time: LIMITS.reset * 1000 - 60 * 60 * 1000 };
   const integration = new PushoverIntegration(gladys, {
+    now: () => clock.time,
     createClient: (options) => {
       const client = clients[Math.min(created.length, clients.length - 1)];
       created.push({ options, client });
@@ -44,7 +52,7 @@ function setup({ clients = [scriptedClient()], config = { app_token: TOKEN } } =
       debug: (message) => logs.debug.push(message),
     },
   });
-  return { gladys, integration, created, logs, client: clients[0] };
+  return { gladys, integration, created, logs, clock, client: clients[0] };
 }
 
 const pushoverError = (kind, status = 400) => new PushoverError(kind, `${kind} detail`, { status });
@@ -136,6 +144,25 @@ test('Pushover unreachable at startup does not block sending, and a success rest
     gladys.calls.connectionStatuses.map(({ connected }) => connected),
     [false, true],
   );
+});
+
+test('the status restored by a successful send still shows the quota left', async () => {
+  const client = scriptedClient({
+    sends: [pushoverError('server', 503), { request: 'r', remaining: 7400 }],
+  });
+  const { gladys, integration } = setup({ clients: [client] });
+  await integration.applyConfig({ app_token: TOKEN });
+
+  await assert.rejects(integration.handleSendMessage(CONTACT, TEXT));
+  await integration.handleSendMessage(CONTACT, TEXT);
+
+  assert.deepEqual(gladys.calls.connectionStatuses.at(-1), {
+    connected: true,
+    message: {
+      en: 'Connected to Pushover: 7400 of 10000 messages left this month.',
+      fr: 'Connecté à Pushover : 7400 messages restants sur 10000 ce mois-ci.',
+    },
+  });
 });
 
 test('the token check of an older configuration changes nothing once a new one is applied', async () => {
@@ -239,11 +266,41 @@ test('every undelivered message is logged in the integration logs', async () => 
   assert.ok(failures[1].includes(describeError(pushoverError('invalid_user')).en));
 });
 
-test('a quota or token refusal while sending is shown as the connection status', async () => {
-  const client = scriptedClient({
-    sends: [pushoverError('quota', 429), pushoverError('invalid_token')],
+test('a refused user key is not sent again for a while, other users still are', async () => {
+  const OTHER_USER = 'vQiRzpo4DXghDmr9QzzfQu27cmVRsG';
+  const client = scriptedClient();
+  client.sendMessage = async (message) => {
+    client.sent.push(message);
+    if (message.user === USER) {
+      throw pushoverError('invalid_user');
+    }
+    return { request: 'r', remaining: 1 };
+  };
+  const { integration, clock } = setup({ clients: [client] });
+  await integration.applyConfig({ app_token: TOKEN });
+
+  await assert.rejects(integration.handleSendMessage(CONTACT, TEXT));
+  await assert.rejects(integration.handleSendMessage(CONTACT, TEXT), {
+    message: /^Pushover refused the user key.*\[not sent: refused less than 10 minutes ago\]$/,
   });
-  const { gladys, integration } = setup({ clients: [client] });
+  await integration.handleSendMessage({ user_key: OTHER_USER }, TEXT);
+  assert.deepEqual(
+    client.sent.map(({ user }) => user),
+    [USER, OTHER_USER],
+  );
+
+  clock.time += REFUSED_USER_RETRY_MS;
+  await assert.rejects(integration.handleSendMessage(CONTACT, TEXT));
+  assert.equal(client.sent.length, 3, 'tried again after the delay');
+
+  await integration.applyConfig({ app_token: TOKEN });
+  await assert.rejects(integration.handleSendMessage(CONTACT, TEXT));
+  assert.equal(client.sent.length, 4, 'tried again after a new configuration');
+});
+
+test('an exhausted quota stops the requests until it resets', async () => {
+  const client = scriptedClient({ sends: [pushoverError('quota', 429), { request: 'r' }] });
+  const { gladys, integration, clock } = setup({ clients: [client] });
   await integration.applyConfig({ app_token: TOKEN });
 
   await assert.rejects(integration.handleSendMessage(CONTACT, TEXT));
@@ -251,10 +308,48 @@ test('a quota or token refusal while sending is shown as the connection status',
     connected: false,
     message: describeError(pushoverError('quota', 429)),
   });
+  clock.time = LIMITS.reset * 1000 - 1;
+  await assert.rejects(integration.handleSendMessage(CONTACT, TEXT), {
+    message: /^The monthly Pushover message limit is reached.*\[not sent until the quota resets\]$/,
+  });
+  assert.equal(client.sent.length, 1, 'no request before the reset');
+
+  clock.time = LIMITS.reset * 1000;
+  await integration.handleSendMessage(CONTACT, TEXT);
+  assert.equal(client.sent.length, 2);
+  assert.equal(gladys.calls.connectionStatuses.at(-1).connected, true);
+});
+
+test('an exhausted quota without a known reset date pauses for an hour', async () => {
+  const client = scriptedClient({
+    limits: [pushoverError('unreachable', undefined)],
+    sends: [pushoverError('quota', 429), { request: 'r' }],
+  });
+  const { integration, clock } = setup({ clients: [client] });
+  await integration.applyConfig({ app_token: TOKEN });
 
   await assert.rejects(integration.handleSendMessage(CONTACT, TEXT));
+  clock.time += QUOTA_RETRY_MS - 1;
   await assert.rejects(integration.handleSendMessage(CONTACT, TEXT));
-  assert.equal(client.sent.length, 2, 'blocked after the token refusal');
+  assert.equal(client.sent.length, 1);
+
+  clock.time += 1;
+  await integration.handleSendMessage(CONTACT, TEXT);
+  assert.equal(client.sent.length, 2);
+});
+
+test('a token refusal while sending is shown as the connection status', async () => {
+  const client = scriptedClient({ sends: [pushoverError('invalid_token')] });
+  const { gladys, integration } = setup({ clients: [client] });
+  await integration.applyConfig({ app_token: TOKEN });
+
+  await assert.rejects(integration.handleSendMessage(CONTACT, TEXT));
+  assert.deepEqual(gladys.calls.connectionStatuses.at(-1), {
+    connected: false,
+    message: describeError(pushoverError('invalid_token')),
+  });
+  await assert.rejects(integration.handleSendMessage(CONTACT, TEXT));
+  assert.equal(client.sent.length, 1, 'blocked after the token refusal');
 });
 
 test('a message arriving before the configuration was applied reads it first', async () => {

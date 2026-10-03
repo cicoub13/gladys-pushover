@@ -92,7 +92,8 @@ message is sent until you save a valid token.
 **"The monthly Pushover message limit is reached. It resets on the 1st of the
 month."** The Pushover account owning the application sent its 10,000 messages
 of the month, all applications included. Reduce the number of messages your
-scenes send, or buy more capacity from Pushover.
+scenes send, or buy more capacity from Pushover. Gladys stops asking Pushover
+until the quota resets.
 
 **"Pushover cannot be reached. Check the Internet access of the Gladys
 machine."**, **"Pushover did not answer in time. Try again later."**,
@@ -112,7 +113,8 @@ In the logs of the integration, for one message:
   again.
 - **`Pushover refused the user key, or the account has no active device`**: the
   key does not exist, or no device is active on that Pushover account. Open the
-  Pushover app on your phone to activate it.
+  Pushover app on your phone to activate it. The same key is not tried again for
+  10 minutes; a corrected key is used right away.
 - **`Invalid Pushover device name(s) in "My account"`**: a device name contains
   a forbidden character. A device name is at most 25 characters: letters,
   digits, `-` and `_`.
