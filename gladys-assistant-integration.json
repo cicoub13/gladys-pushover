@@ -11,6 +11,7 @@
   "gladys_version": ">=4.86.0",
   "cover_image": "https://raw.githubusercontent.com/cicoub13/gladys-pushover/main/cover.png",
   "categories": ["notifications"],
+  "transports": ["cloud"],
   "messaging": {
     "receive": false
   },

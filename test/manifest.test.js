@@ -65,6 +65,10 @@ test('the catalog categories are declared and come from the core vocabulary', ()
   }
 });
 
+test('the transport is declared for the catalog Local / Cloud filter', () => {
+  assert.deepEqual(manifest.transports, ['cloud']);
+});
+
 test('no permission or capability is declared that the integration does not use', () => {
   for (const key of [
     'location',
@@ -72,7 +76,6 @@ test('no permission or capability is declared that the integration does not use'
     'network_discovery',
     'containers',
     'webhooks',
-    'transports',
     'actions',
     'widgets',
     'scene_triggers',
