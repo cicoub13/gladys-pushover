@@ -4,6 +4,8 @@ All notable changes to the Pushover integration for Gladys Assistant.
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-10-08
+
 ### Changed
 
 - The integration now appears under the "Cloud" filter of the Gladys
