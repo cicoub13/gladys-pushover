@@ -25,6 +25,17 @@ external integration running in its own container, on the JavaScript SDK
   exhausted quota pauses it: Pushover temporarily blocks an IP address that
   keeps sending invalid requests.
 
+## Screenshots
+
+The configuration screen: the connection status with the messages left this
+month, the application token (administrator) and the **My account** block where
+each user enters their own Pushover user key and devices:
+
+![The Pushover configuration screen in Gladys](docs/images/configuration.png)
+
+_Captured on a Gladys 5.1 instance with a simulated Pushover API — values are
+illustrative._
+
 ## Install
 
 - **From Gladys**: install **Pushover** from the integration store (Gladys
