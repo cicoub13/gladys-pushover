@@ -64,8 +64,10 @@ Project-specific notes. Generic rules (SDK contract, commands, kit-owned files, 
 
 ## Tests
 
-- `test/helpers/fakeGladys.js`: records `getConfig` / `setConnectionStatus`, `failNext()` simulates
-  host 429s. `test/integration.test.js` injects a scripted Pushover client (outcome lists).
+- `test/integration.test.js` runs against the SDK fake Gladys (`createFakeGladys` from
+  `@gladysassistant/integration-sdk/testing`: `fake.requests`, `fake.connectionStatuses`; a host
+  429 is a `t.mock.method` on the SDK method) and injects a scripted Pushover client (outcome
+  lists).
 - `test/client.test.js` uses a recording `fakeFetch` returning real `Response` objects.
 - `test/manifest.test.js` cross-checks the manifest with the code (config and contact keys,
   version, image tag, cover size and dimensions): update both sides together.

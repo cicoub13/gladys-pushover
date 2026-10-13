@@ -1,5 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { GladysApiError } from '@gladysassistant/integration-sdk';
+import { createFakeGladys } from '@gladysassistant/integration-sdk/testing';
 import {
   MESSAGES,
   PushoverIntegration,
@@ -8,7 +10,6 @@ import {
 } from '../src/integration.js';
 import { PushoverError, describeError } from '../src/pushover/client.js';
 import { IMAGE_ONLY_TEXT } from '../src/message.js';
-import { createFakeGladys } from './helpers/fakeGladys.js';
 
 const TOKEN = 'azGDORePK8gMaC0QOYAMyEEuzJnyUi';
 const OTHER_TOKEN = 'bzGDORePK8gMaC0QOYAMyEEuzJnyUi';
@@ -63,7 +64,7 @@ test('without a token, nothing is created and the status asks for one', async ()
   await integration.applyConfig({});
 
   assert.equal(created.length, 0);
-  assert.deepEqual(gladys.calls.connectionStatuses, [
+  assert.deepEqual(gladys.fake.connectionStatuses, [
     { connected: false, message: MESSAGES.notConfigured },
   ]);
   await assert.rejects(integration.handleSendMessage(CONTACT, TEXT), {
@@ -77,7 +78,7 @@ test('a malformed token is reported without asking Pushover', async () => {
   await integration.applyConfig({ app_token: 'not-a-token' });
 
   assert.equal(created.length, 0);
-  assert.deepEqual(gladys.calls.connectionStatuses, [
+  assert.deepEqual(gladys.fake.connectionStatuses, [
     { connected: false, message: MESSAGES.invalidToken },
   ]);
 });
@@ -92,7 +93,7 @@ test('a valid token is checked against Pushover and the quota is shown', async (
     [{ token: TOKEN }],
   );
   assert.equal(client.limitsCalls, 1);
-  assert.deepEqual(gladys.calls.connectionStatuses, [
+  assert.deepEqual(gladys.fake.connectionStatuses, [
     {
       connected: true,
       message: {
@@ -108,7 +109,7 @@ test('a quota answer without figures still reports the connection, without a mes
 
   await integration.applyConfig({ app_token: TOKEN });
 
-  assert.deepEqual(gladys.calls.connectionStatuses, [{ connected: true, message: undefined }]);
+  assert.deepEqual(gladys.fake.connectionStatuses, [{ connected: true }]);
 });
 
 test('a token refused by Pushover blocks every send until the configuration changes', async () => {
@@ -122,7 +123,7 @@ test('a token refused by Pushover blocks every send until the configuration chan
   });
 
   assert.equal(refused.sent.length, 0, 'no request with a refused token');
-  assert.deepEqual(gladys.calls.connectionStatuses.at(-1), {
+  assert.deepEqual(gladys.fake.connectionStatuses.at(-1), {
     connected: false,
     message: describeError(pushoverError('invalid_token')),
   });
@@ -141,7 +142,7 @@ test('Pushover unreachable at startup does not block sending, and a success rest
 
   assert.equal(client.sent.length, 1);
   assert.deepEqual(
-    gladys.calls.connectionStatuses.map(({ connected }) => connected),
+    gladys.fake.connectionStatuses.map(({ connected }) => connected),
     [false, true],
   );
 });
@@ -156,7 +157,7 @@ test('the status restored by a successful send still shows the quota left', asyn
   await assert.rejects(integration.handleSendMessage(CONTACT, TEXT));
   await integration.handleSendMessage(CONTACT, TEXT);
 
-  assert.deepEqual(gladys.calls.connectionStatuses.at(-1), {
+  assert.deepEqual(gladys.fake.connectionStatuses.at(-1), {
     connected: true,
     message: {
       en: 'Connected to Pushover: 7400 of 10000 messages left this month.',
@@ -181,7 +182,7 @@ test('the token check of an older configuration changes nothing once a new one i
   await first;
 
   assert.deepEqual(
-    gladys.calls.connectionStatuses.map(({ connected }) => connected),
+    gladys.fake.connectionStatuses.map(({ connected }) => connected),
     [true],
   );
   await integration.handleSendMessage(CONTACT, TEXT);
@@ -249,7 +250,7 @@ test('a refused user key fails the message but leaves the channel status alone',
     assert.equal(err.cause.kind, 'invalid_user');
     return true;
   });
-  assert.equal(gladys.calls.connectionStatuses.length, 1, 'still the connected status');
+  assert.equal(gladys.fake.connectionStatuses.length, 1, 'still the connected status');
 });
 
 test('every undelivered message is logged in the integration logs', async () => {
@@ -304,7 +305,7 @@ test('an exhausted quota stops the requests until it resets', async () => {
   await integration.applyConfig({ app_token: TOKEN });
 
   await assert.rejects(integration.handleSendMessage(CONTACT, TEXT));
-  assert.deepEqual(gladys.calls.connectionStatuses.at(-1), {
+  assert.deepEqual(gladys.fake.connectionStatuses.at(-1), {
     connected: false,
     message: describeError(pushoverError('quota', 429)),
   });
@@ -317,7 +318,7 @@ test('an exhausted quota stops the requests until it resets', async () => {
   clock.time = LIMITS.reset * 1000;
   await integration.handleSendMessage(CONTACT, TEXT);
   assert.equal(client.sent.length, 2);
-  assert.equal(gladys.calls.connectionStatuses.at(-1).connected, true);
+  assert.equal(gladys.fake.connectionStatuses.at(-1).connected, true);
 });
 
 test('an exhausted quota without a known reset date pauses for an hour', async () => {
@@ -344,7 +345,7 @@ test('a token refusal while sending is shown as the connection status', async ()
   await integration.applyConfig({ app_token: TOKEN });
 
   await assert.rejects(integration.handleSendMessage(CONTACT, TEXT));
-  assert.deepEqual(gladys.calls.connectionStatuses.at(-1), {
+  assert.deepEqual(gladys.fake.connectionStatuses.at(-1), {
     connected: false,
     message: describeError(pushoverError('invalid_token')),
   });
@@ -355,27 +356,38 @@ test('a token refusal while sending is shown as the connection status', async ()
 test('a message arriving before the configuration was applied reads it first', async () => {
   const { gladys, integration, client } = setup();
 
+  const configReads = () =>
+    gladys.fake.requests.filter(({ method, path }) => method === 'GET' && path === '/config')
+      .length;
+
   await integration.handleSendMessage(CONTACT, TEXT);
 
-  assert.equal(gladys.calls.getConfig, 1);
+  assert.equal(configReads(), 1);
   assert.equal(client.sent.length, 1);
   await integration.handleSendMessage(CONTACT, TEXT);
-  assert.equal(gladys.calls.getConfig, 1, 'only once');
+  assert.equal(configReads(), 1, 'only once');
 });
 
-test('the connection status is published only when it changes, and its failures are not fatal', async () => {
+test('the connection status is published only when it changes, and its failures are not fatal', async (t) => {
   const { gladys, integration, logs } = setup();
 
   await integration.applyConfig({ app_token: TOKEN });
   await integration.applyConfig({ app_token: TOKEN });
-  assert.equal(gladys.calls.connectionStatuses.length, 1);
+  assert.equal(gladys.fake.connectionStatuses.length, 1);
 
-  gladys.failNext('setConnectionStatus');
+  t.mock.method(
+    gladys,
+    'setConnectionStatus',
+    async () => {
+      throw new GladysApiError(429, 'TOO_MANY_REQUESTS', 'Too Many Requests');
+    },
+    { times: 1 },
+  );
   await integration.applyConfig({});
-  assert.equal(gladys.calls.connectionStatuses.length, 1);
+  assert.equal(gladys.fake.connectionStatuses.length, 1);
   assert.match(logs.warn.at(-1), /Unable to publish the connection status/);
 
   // Not recorded as published: the next report retries it.
   await integration.applyConfig({});
-  assert.equal(gladys.calls.connectionStatuses.length, 2);
+  assert.equal(gladys.fake.connectionStatuses.length, 2);
 });
