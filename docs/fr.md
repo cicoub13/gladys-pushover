@@ -1,6 +1,6 @@
 # Pushover
 
-> **Nécessite Gladys 4.86 ou supérieur.**
+## Présentation
 
 Recevez les messages de Gladys sur votre téléphone, votre tablette ou votre
 ordinateur grâce à [Pushover](https://pushover.net) : les notifications de vos
@@ -13,6 +13,7 @@ ne pouvez pas répondre à Gladys depuis Pushover.
 
 ## Prérequis
 
+- **Gladys 4.86 ou supérieur.**
 - Un compte [Pushover](https://pushover.net) pour chaque personne qui doit
   recevoir les messages.
 - L'application Pushover installée et connectée sur chaque appareil qui doit
@@ -21,8 +22,12 @@ ne pouvez pas répondre à Gladys depuis Pushover.
   plateforme.
 - L'envoi est gratuit jusqu'à 10 000 messages par mois, pour tout le compte
   Pushover qui possède l'application créée ci-dessous.
+- Un accès à Internet depuis la machine Gladys : les messages sont envoyés via
+  l'API de Pushover (`api.pushover.net`).
 
-## Configuration (administrateur)
+## Configuration
+
+### Jeton d'application (administrateur)
 
 1. Connectez-vous à [pushover.net](https://pushover.net), puis ouvrez
    [Create an Application/API Token](https://pushover.net/apps/build).
@@ -38,7 +43,7 @@ L'état de connexion affiche alors par exemple `Connecté à Pushover : 9996
 messages restants sur 10000 ce mois-ci.` ; sinon, il affiche l'un des messages
 décrits dans la partie « Dépannage » ci-dessous.
 
-## Recevoir les messages (chaque utilisateur)
+### Recevoir les messages (chaque utilisateur)
 
 Chaque utilisateur de Gladys, administrateur ou non, renseigne son propre compte
 Pushover dans le bloc **Mon compte** de l'écran de configuration de
@@ -76,12 +81,23 @@ Ce qui arrive sur votre téléphone :
 
 Le son et les heures calmes se règlent dans l'application Pushover elle-même.
 
+## Confidentialité
+
+- Le jeton d'application et les clés utilisateur sont stockés par Gladys comme
+  des secrets : ils ne sont jamais réaffichés dans l'interface.
+- Le texte des messages et les images de caméra transitent par les serveurs de
+  Pushover, qui les suppriment une fois livrés sur vos appareils. Voir la
+  [politique de confidentialité de Pushover](https://pushover.net/privacy).
+- L'intégration ne communique qu'avec Gladys et l'API de Pushover
+  (`api.pushover.net`).
+
 ## Dépannage
 
 L'état de connexion de l'écran de configuration signale les problèmes qui
 touchent tous les utilisateurs. Un message qui n'a pas pu être délivré est noté
 dans les journaux de l'intégration (`Message not delivered: …`), avec la raison
-en anglais.
+en anglais. Vous trouverez ces journaux dans Gladys, sur la page de l'intégration,
+avec les commandes de supervision (démarrer, arrêter, redémarrer…).
 
 **« Saisissez le jeton d'application Pushover dans les paramètres de
 l'intégration. »** Renseignez **Jeton d'API de l'application** (voir
@@ -138,13 +154,3 @@ que votre clé est bien enregistrée dans **Mon compte**, que la scène envoie l
 message à votre utilisateur et via Pushover ou tous les services, et que
 l'application Pushover est connectée sur votre téléphone. Pendant vos heures
 calmes Pushover, les messages arrivent sans son.
-
-## Confidentialité
-
-- Le jeton d'application et les clés utilisateur sont stockés par Gladys comme
-  des secrets : ils ne sont jamais réaffichés dans l'interface.
-- Le texte des messages et les images de caméra transitent par les serveurs de
-  Pushover, qui les suppriment une fois livrés sur vos appareils. Voir la
-  [politique de confidentialité de Pushover](https://pushover.net/privacy).
-- L'intégration ne communique qu'avec Gladys et l'API de Pushover
-  (`api.pushover.net`).
