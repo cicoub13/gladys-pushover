@@ -4,6 +4,12 @@ All notable changes to the Pushover integration for Gladys Assistant.
 
 ## [Unreleased]
 
+## [0.1.6] - 2026-10-28
+
+### Changed
+
+- Maintenance release: dependency and build updates, no functional change.
+
 ## [0.1.5] - 2026-10-13
 
 ### Changed
